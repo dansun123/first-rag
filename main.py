@@ -1,12 +1,18 @@
+from dotenv import load_dotenv
 import os
 from typing import List
 
-import openai
+from openai import OpenAI
 import pinecone
 
-OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
-PINECONE_API_KEY = os.environ["PINECONE_API_KEY"]
-PINECONE_ENVIRONMENT = os.environ["PINECONE_ENVIRONMENT"]
+load_dotenv()
+
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
+print(PINECONE_API_KEY)
+PINECONE_ENV= os.getenv("PINECONE_ENV")
+INDEX_NAME = os.getenv("INDEX_NAME")
+client = OpenAI(api_key=OPENAI_API_KEY)
 
 # Global variable to maintain mapping
 ID_TO_CHUNK_MAPPING = {}
@@ -25,10 +31,9 @@ def chunk_text_by_characters(text: str, chunk_size: int) -> List[str]:
 
 
 def embed_text(chunk: str) -> List[float]:
-  response = openai.Embedding.create(input=chunk,
+  response = client.embeddings.create(input=chunk,
                                      model="text-embedding-ada-002")
-  return response['data'][0]['embedding']
-
+  return response.data[0].embedding
 
 def store_embeddings_in_pinecone(embeddings: List[List[float]],
                                  chunks: List[str]) -> None:
@@ -37,13 +42,14 @@ def store_embeddings_in_pinecone(embeddings: List[List[float]],
   vectors_to_upsert = []
 
   # Initialize Pinecone
-  pinecone.init(api_key=PINECONE_API_KEY, environment=PINECONE_ENVIRONMENT)
+  pinecone.init(api_key=PINECONE_API_KEY, environment=PINECONE_ENV)
 
   # Create or reference an index
-  index_name = 'text-embeddings-index'
-
+  index_name = INDEX_NAME 
+  print(pinecone.list_indexes())
   if index_name not in pinecone.list_indexes():
     pinecone.create_index(index_name, dimension=1536)
+    print("already exists")
 
   index = pinecone.Index(index_name)
 
@@ -68,9 +74,10 @@ def get_text_from_id(chunk_id: str) -> str:
 
 def retrieve_similar_chunks(question: str) -> List[str]:
   embedding = embed_text(question)
+  print(embedding)
 
   # Use the Pinecone index to find the most similar chunks of text
-  index_name = 'text-embeddings-index'
+  index_name = INDEX_NAME 
   index = pinecone.Index(index_name)
 
   # Adjusted for the newer Pinecone API
@@ -103,7 +110,7 @@ def construct_prompt(question: str, similar_chunks: List[str]) -> str:
 
 def get_gpt_response(prompt: str) -> str:
   # Using the chat models with the v1/chat/completions endpoint
-  response = openai.ChatCompletion.create(model="gpt-4",
+  response = client.chat.completions.create(model="gpt-4",
                                           messages=[{
                                               "role":
                                               "system",
@@ -114,8 +121,7 @@ def get_gpt_response(prompt: str) -> str:
                                               "content": prompt
                                           }])
   # Extracting the assistant's reply from the response
-  assistant_message = response['choices'][0]['message']['content']
-
+  assistant_message = response.choices[0].message.content
   return assistant_message
 
 
