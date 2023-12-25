@@ -126,11 +126,14 @@ def get_gpt_response(prompt: str) -> str:
 
 
 def main():
+  # Read the text file into memory and store vector embeddings in Pinecone
   text = get_text('input.txt')
   chunks = chunk_text_by_characters(text, 500)
   embeddings = [embed_text(chunk) for chunk in chunks]
   store_embeddings_in_pinecone(embeddings, chunks)
 
+  # Comment out 4 lines above and uncomment out line below to just run the chatbot
+  # pinecone.init(api_key=PINECONE_API_KEY, environment=PINECONE_ENV)
   while True:
     question = input("Ask a question: ")
     if question == "quit":
